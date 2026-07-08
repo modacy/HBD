@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>點餐餐費計算系統｜含10%服務費與六人平均</title>
+  <style>
+    :root{
+      --bg:#f7f3ec; --card:#fffaf2; --ink:#2e241b; --muted:#76695c; --line:#e3d7c8;
+      --accent:#8a5a35; --accent2:#b8895f; --danger:#a83b2d; --ok:#3d6b4f;
+      --shadow:0 10px 30px rgba(60,42,25,.12);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,-apple-system,sans-serif;background:linear-gradient(135deg,#f7f3ec,#efe3d4);color:var(--ink)}
+    header{position:sticky;top:0;z-index:10;background:rgba(247,243,236,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+    .wrap{max-width:1180px;margin:0 auto;padding:18px 20px}
+    h1{margin:0;font-size:24px;letter-spacing:.04em}.sub{margin-top:6px;color:var(--muted);font-size:14px}
+    .layout{display:grid;grid-template-columns:1fr 360px;gap:22px;max-width:1180px;margin:0 auto;padding:22px 20px 60px}
+    .toolbar{display:grid;grid-template-columns:1.3fr .9fr .8fr;gap:12px;margin-bottom:16px}
+    input,select,button{font:inherit} input[type="search"], select{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:#fff;color:var(--ink)}
+    .menu{display:grid;gap:14px}.cat{background:rgba(255,250,242,.8);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);overflow:hidden}.cat h2{margin:0;padding:16px 18px;background:#fff6e8;border-bottom:1px solid var(--line);font-size:18px}.items{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--line)}
+    .item{background:var(--card);padding:15px;display:grid;grid-template-columns:1fr auto;gap:10px;min-height:118px}.name{font-weight:700;font-size:16px}.meta{margin-top:6px;color:var(--muted);font-size:13px;line-height:1.35}.price{font-weight:800;color:var(--accent);white-space:nowrap}.stepper{display:flex;align-items:center;gap:8px;margin-top:12px}.stepper button{width:32px;height:32px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-weight:800;cursor:pointer}.stepper button.zero{background:#d9c8b7;color:#4b3a2d}.qty{width:42px;text-align:center;padding:6px;border:1px solid var(--line);border-radius:10px;background:#fff}
+    aside{position:sticky;top:96px;height:fit-content;background:#fffaf2;border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);padding:18px}.summary-title{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:12px}.summary-title h2{margin:0;font-size:20px}.pill{font-size:12px;color:#fff;background:var(--accent2);padding:4px 8px;border-radius:999px}.cart{max-height:310px;overflow:auto;margin-bottom:12px}.empty{color:var(--muted);font-size:14px;padding:18px 4px}.cart-row{display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;border-bottom:1px dashed var(--line)}.cart-row strong{font-size:14px}.cart-row span{color:var(--muted);font-size:13px}.money{font-variant-numeric:tabular-nums;font-weight:800}.totals{border-top:1px solid var(--line);padding-top:12px}.line{display:flex;justify-content:space-between;gap:12px;margin:9px 0;color:var(--muted)}.line.total{font-size:24px;color:var(--ink);font-weight:900;margin-top:14px}.line.avg{font-size:18px;color:var(--ok);font-weight:800}.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}.actions button{border:0;border-radius:14px;padding:12px 10px;cursor:pointer;font-weight:800}.print{background:var(--accent);color:#fff}.clear{background:#eadccd;color:#5b4430}.note{margin-top:12px;color:var(--muted);font-size:12px;line-height:1.5}.special{color:var(--danger);font-weight:700}
+    @media (max-width:900px){.layout{grid-template-columns:1fr}.toolbar{grid-template-columns:1fr}.items{grid-template-columns:1fr} aside{position:static}}
+    @media print{header,.toolbar,.actions,.stepper button,.qty{display:none!important}body{background:#fff}.layout{display:block}.cat,aside{box-shadow:none}.items{grid-template-columns:1fr 1fr}}
+  </style>
+</head>
+<body>
+<header><div class="wrap"><h1>點餐餐費計算系統</h1><div class="sub">自動加計 10% 服務費，並計算六人平均價。幣別：新台幣 NT$。</div></div></header>
+<main class="layout">
+  <section>
+    <div class="toolbar">
+      <input id="search" type="search" placeholder="搜尋菜名、分類、備註，例如：蝦、預訂、甜點" />
+      <select id="category"><option value="all">全部分類</option></select>
+      <select id="sort"><option value="default">原菜單順序</option><option value="priceAsc">價格低到高</option><option value="priceDesc">價格高到低</option></select>
+    </div>
+    <div id="menu" class="menu"></div>
+  </section>
+  <aside>
+    <div class="summary-title"><h2>已點餐點</h2><span class="pill">6 人平均</span></div>
+    <div id="cart" class="cart"><div class="empty">尚未選擇餐點。</div></div>
+    <div class="totals">
+      <div class="line"><span>餐點小計</span><span id="subtotal" class="money">NT$0</span></div>
+      <div class="line"><span>10% 服務費</span><span id="service" class="money">NT$0</span></div>
+      <div class="line total"><span>總價</span><span id="total" class="money">NT$0</span></div>
+      <div class="line avg"><span>六人平均</span><span id="avg" class="money">NT$0</span></div>
+    </div>
+    <div class="actions"><button class="print" onclick="window.print()">列印明細</button><button class="clear" id="clearBtn">清空</button></div>
+    <div class="note">備註：本系統依菜單標示金額計算；「每位／每兩／每粒」品項的數量請自行依實際點用份數、重量或人數調整。</div>
+  </aside>
+</main>
+<script>
+const menuData = [
+ {cat:'點心類',name:'君品明蝦餃',price:680,unit:'/3',note:''},
+ {cat:'點心類',name:'鮑魚雞肉燒賣',price:780,unit:'/3',note:''},
+ {cat:'點心類',name:'春風得意腸',price:1280,unit:'/6',note:'需等待30分鐘'},
+ {cat:'點心類',name:'福州蔥油餅',price:1080,unit:'/3',note:'需等待30分鐘'},
+ {cat:'點心類',name:'金銀蛋蒜香莧菜餃',price:480,unit:'/3',note:''},
+ {cat:'點心類',name:'蘿蔔絲酥餅',price:580,unit:'/3',note:'含臘腸；需等待20分鐘'},
+ {cat:'點心類',name:'臘味蘿蔔糕',price:480,unit:'/6',note:''},
+ {cat:'點心類',name:'韭菜鮮蝦春捲',price:680,unit:'/3',note:''},
+ {cat:'點心類',name:'鮑魚鹹水餃',price:780,unit:'/3',note:''},
+ {cat:'點心類',name:'酥皮焗叉燒包',price:380,unit:'/1',note:'豬肉產地：台灣'},
+ {cat:'主廚小炒',name:'金瑤炒龍筋',price:1280,unit:'/例',note:''},
+ {cat:'主廚小炒',name:'重慶水煮牛',price:1480,unit:'/例',note:'牛肉產地：美國'},
+ {cat:'主廚小炒',name:'宮保乾坤袋',price:1080,unit:'/例',note:''},
+ {cat:'主廚小炒',name:'麻辣跳跳雞',price:1280,unit:'/例',note:''},
+ {cat:'鮑魚、官燕',name:'日本吉品溏心鮑 二十四頭',price:14800,unit:'/每',note:'預定4天；產地：日本岩手縣'},
+ {cat:'鮑魚、官燕',name:'日本原條刺參拼花菇',price:3880,unit:'/位',note:'產地：日本北海道'},
+ {cat:'鮑魚、官燕',name:'吉品四頭鮑魚拼鵝掌',price:4880,unit:'/位',note:''},
+ {cat:'鮑魚、官燕',name:'吉品五頭鮑魚拼鵝掌',price:3880,unit:'/位',note:''},
+ {cat:'鮑魚、官燕',name:'吉品八頭鮑魚燴海參',price:2880,unit:'/位',note:''},
+ {cat:'鮑魚、官燕',name:'雞茸官燕',price:5880,unit:'/位',note:''},
+ {cat:'鮑魚、官燕',name:'濃湯燒官燕',price:5880,unit:'/位',note:''},
+ {cat:'明爐廣式燒臘類',name:'火焰片皮鴨四吃',price:5880,unit:'/一羽',note:'需預訂'},
+ {cat:'明爐廣式燒臘類',name:'先知鴨二吃',price:3880,unit:'/一羽',note:'需預訂'},
+ {cat:'明爐廣式燒臘類',name:'頤宮叉燒皇',price:4680,unit:'/例',note:'需預訂；豬肉產地：台灣'},
+ {cat:'明爐廣式燒臘類',name:'化皮燒乳豬',price:1880,unit:'/例',note:'需預訂；豬肉產地：台灣'},
+ {cat:'湯品',name:'羊肚菌竹笙燉菜膽',price:1680,unit:'/位',note:''},
+ {cat:'湯品',name:'厚花膠燉濃湯',price:3880,unit:'/位',note:''},
+ {cat:'湯品',name:'花膠瑤柱羹',price:980,unit:'/位',note:''},
+ {cat:'湯品',name:'松茸干貝燉百合',price:2180,unit:'/位',note:''},
+ {cat:'湯品',name:'頂湯燉原只鮑(35頭)',price:3880,unit:'/位',note:'預定3天'},
+ {cat:'海鮮類及作法',name:'沙母',price:200,unit:'/每兩',note:'每 37.5g'},
+ {cat:'海鮮類及作法',name:'處女蟳',price:200,unit:'/每兩',note:'每 37.5g'},
+ {cat:'海鮮類及作法',name:'鮮鮑魚',price:1080,unit:'/每粒',note:''},
+ {cat:'海鮮類及作法',name:'龍蝦',price:400,unit:'/每兩',note:'每 37.5g'},
+ {cat:'海鮮類及作法',name:'七星斑',price:300,unit:'/每兩',note:'每 37.5g'},
+ {cat:'海鮮類及作法',name:'筍殼魚',price:280,unit:'/每兩',note:'每 37.5g'},
+ {cat:'海鮮類及作法',name:'龍虎斑',price:250,unit:'/每兩',note:'每 37.5g'},
+ {cat:'海鮮類',name:'羊肚菌炒蝦球',price:3680,unit:'/例',note:''},
+ {cat:'海鮮類',name:'翡翠炒虎斑球',price:2980,unit:'/例',note:''},
+ {cat:'海鮮類',name:'蝦籽海鮮豆腐煲',price:2980,unit:'/例',note:''},
+ {cat:'海鮮類',name:'秘製粉絲蝦煲',price:1980,unit:'/例',note:''},
+ {cat:'海鮮類',name:'薑蔥爆蝦球',price:2980,unit:'/例',note:''},
+ {cat:'海鮮類',name:'椒鹽蟹鉗',price:3280,unit:'/件',note:''},
+ {cat:'肉品類',name:'山楂骨',price:2680,unit:'/例',note:'豬肉產地：台灣'},
+ {cat:'肉品類',name:'陳醋五花骨',price:1980,unit:'/例',note:'豬肉產地：台灣'},
+ {cat:'肉品類',name:'君品吊燒炸子雞 半隻',price:1580,unit:'/半隻',note:'需預訂'},
+ {cat:'肉品類',name:'君品吊燒炸子雞 一隻',price:2980,unit:'/一隻',note:'需預訂'},
+ {cat:'肉品類',name:'豆豉爆日本和牛',price:8800,unit:'/例',note:'4.5oz/菲力；產地：日本鹿兒島縣'},
+ {cat:'肉品類',name:'蒜片爆日本和牛',price:6880,unit:'/例',note:'紐約客；產地：日本鹿兒島縣'},
+ {cat:'肉品類',name:'乾蔥豆豉雞煲',price:1480,unit:'/例',note:''},
+ {cat:'青菜、豆腐類',name:'肉鬆雲耳燜絲瓜',price:880,unit:'/例',note:'豬肉產地：台灣'},
+ {cat:'青菜、豆腐類',name:'野菌上湯浸娃娃菜',price:980,unit:'/例',note:''},
+ {cat:'青菜、豆腐類',name:'蒜子小魚炆莧菜',price:980,unit:'/例',note:''},
+ {cat:'青菜、豆腐類',name:'百頁菠A菜',price:880,unit:'/例',note:''},
+ {cat:'青菜、豆腐類',name:'鮮百合玉耳炒西芹',price:880,unit:'/例',note:''},
+ {cat:'青菜、豆腐類',name:'雞火豆腐絲',price:1380,unit:'/例',note:''},
+ {cat:'青菜、豆腐類',name:'蟹黃扒蘆筍',price:3680,unit:'/例',note:''},
+ {cat:'麵飯類',name:'廣式斑球炒麵',price:2980,unit:'/例',note:'虎斑魚片6片'},
+ {cat:'麵飯類',name:'揚州炒飯',price:980,unit:'/例',note:'豬肉產地：台灣'},
+ {cat:'麵飯類',name:'榨菜牛鬆爆米粉',price:1980,unit:'/例',note:'牛肉產地：日本鹿兒島縣'},
+ {cat:'麵飯類',name:'強哥炒米粉',price:1980,unit:'/例',note:''},
+ {cat:'甜點精選',name:'鎮店馬拉糕',price:380,unit:'/1入',note:''},
+ {cat:'甜點精選',name:'原味蛋塔',price:680,unit:'/3入',note:'需等待30分鐘；需預訂'},
+ {cat:'甜點精選',name:'炸豆腐奶',price:480,unit:'/1入',note:'需等待20分鐘'},
+ {cat:'甜點精選',name:'奶黃流沙包',price:380,unit:'/3入',note:''},
+ {cat:'甜點精選',name:'爆漿芝麻球',price:480,unit:'/3入',note:'需等待30分鐘'},
+ {cat:'甜點精選',name:'澳門老店杏仁茶',price:580,unit:'/1入',note:''},
+ {cat:'甜點精選',name:'芝麻奶凍',price:480,unit:'/1入',note:''},
+ {cat:'甜點精選',name:'現磨核桃露',price:580,unit:'/1入',note:''},
+ {cat:'甜點精選',name:'杏仁奶酪',price:480,unit:'/1入',note:''}
+];
+const state = new Map();
+const fmt = n => 'NT$' + Math.round(n).toLocaleString('zh-TW');
+const menuEl = document.getElementById('menu'), catEl = document.getElementById('category'), searchEl = document.getElementById('search'), sortEl = document.getElementById('sort');
+[...new Set(menuData.map(x=>x.cat))].forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;catEl.appendChild(o)});
+function filtered(){
+ let q=searchEl.value.trim().toLowerCase(), c=catEl.value, arr=menuData.map((x,i)=>({...x,i}));
+ if(c!=='all') arr=arr.filter(x=>x.cat===c);
+ if(q) arr=arr.filter(x=>(x.name+x.cat+x.note+x.unit).toLowerCase().includes(q));
+ if(sortEl.value==='priceAsc') arr.sort((a,b)=>a.price-b.price);
+ if(sortEl.value==='priceDesc') arr.sort((a,b)=>b.price-a.price);
+ return arr;
+}
+function render(){
+ const arr=filtered(); menuEl.innerHTML='';
+ const groups = arr.reduce((m,x)=>{(m[x.cat] ||= []).push(x); return m;},{});
+ Object.entries(groups).forEach(([cat,items])=>{
+  const box=document.createElement('div'); box.className='cat';
+  box.innerHTML=`<h2>${cat}</h2><div class="items"></div>`;
+  const grid=box.querySelector('.items');
+  items.forEach(x=>{
+   const q=state.get(x.i)||0;
+   const div=document.createElement('div'); div.className='item';
+   div.innerHTML=`<div><div class="name">${x.name}</div><div class="meta">${x.note?`<span class="special">${x.note}</span><br>`:''}單位：${x.unit}</div><div class="stepper"><button class="zero" data-act="minus" data-i="${x.i}">−</button><input class="qty" data-i="${x.i}" type="number" min="0" value="${q}"><button data-act="plus" data-i="${x.i}">＋</button></div></div><div class="price">${fmt(x.price)}<br><span class="meta">${x.unit}</span></div>`;
+   grid.appendChild(div);
+  });
+  menuEl.appendChild(box);
+ });
+ updateSummary();
+}
+function updateSummary(){
+ const cart=document.getElementById('cart'); cart.innerHTML=''; let subtotal=0, count=0;
+ [...state.entries()].filter(([i,q])=>q>0).forEach(([i,q])=>{
+  const x=menuData[i], line=x.price*q; subtotal+=line; count+=q;
+  const row=document.createElement('div'); row.className='cart-row'; row.innerHTML=`<div><strong>${x.name}</strong><br><span>${fmt(x.price)} ${x.unit} × ${q}</span></div><div class="money">${fmt(line)}</div>`; cart.appendChild(row);
+ });
+ if(!count) cart.innerHTML='<div class="empty">尚未選擇餐點。</div>';
+ const service=subtotal*0.1, total=subtotal+service, avg=total/6;
+ document.getElementById('subtotal').textContent=fmt(subtotal);
+ document.getElementById('service').textContent=fmt(service);
+ document.getElementById('total').textContent=fmt(total);
+ document.getElementById('avg').textContent=fmt(avg);
+}
+document.addEventListener('click',e=>{
+ const btn=e.target.closest('button[data-i]'); if(!btn) return;
+ const i=+btn.dataset.i, cur=state.get(i)||0; state.set(i, btn.dataset.act==='plus'?cur+1:Math.max(0,cur-1)); render();
+});
+document.addEventListener('change',e=>{ if(e.target.classList.contains('qty')){ state.set(+e.target.dataset.i, Math.max(0, parseInt(e.target.value||0,10))); updateSummary(); }});
+[searchEl,catEl,sortEl].forEach(el=>el.addEventListener('input',render));
+document.getElementById('clearBtn').addEventListener('click',()=>{state.clear();render();});
+render();
+</script>
+</body>
+</html>
